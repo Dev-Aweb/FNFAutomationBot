@@ -22,13 +22,13 @@ Alright let's get started.
 This software is made in python version 3.12
 and uses tkinter library for UI,
 pynput keyboard for key press simulation,
-multiprocessing for running processes simultaneously,
+threading for running processes simultaneously,
 pyautogui for color and position checking,
 and configparser for saving data in a .ini file.
 Here are documentations for each library:
 tkinter: https://docs.python.org/3.12/library/tkinter.html
 pynput:
-multiprocessing:
+threading:
 pyautogui:
 configparser:
 
@@ -46,27 +46,73 @@ from pynput.keyboard import Controller
 import tkinter as tk
 from tkinter import ttk, messagebox
 from configparser import ConfigParser
-import multiprocessing
+import threading
+import keyboard
+import time
 
 keyboard_controller = Controller()
+
+
+class Global_Variables:
+    running = False
+    combo = 0
+
+
+def change_color(arrow: str,
+                 displayer: tk.PhotoImage,
+                 enabled: bool):
+    if enabled:
+        displayer.configure(file=f'assets/images/{arrow}_arrow_enabled_sized.png')
+        return
+    time.sleep(0.1)
+    displayer.configure(file=f'assets/images/{arrow}_arrow_disabled_sized.png')
+
+
+def apply_combo(app):
+    string_combo = str(Global_Variables.combo)
+    output = [0, 0, 0]
+    i = 1
+
+    while i <= 3:
+        try:
+            output[-i] = int(string_combo[-i])
+        except IndexError:
+            output[-i] = 0
+
+        i += 1
+
+    app.display_combo(output)
+
+
+
 
 # Main function for key pressing.
 def press_key(position: tuple[int, int],
               color: tuple[float, float, float],
-              key: str,
+              arrow: str,
+              displayer: tk.PhotoImage,
+              app
               ):
-    while True:
+    while Global_Variables.running:
         color_pos = pyautogui.pixel(position[0], position[1])
         if color_pos != color:
             continue
-        keyboard_controller.press(key)
+        keyboard_controller.press(app.settings[arrow])
+        threading.Thread(target=change_color, args=(arrow, displayer, True)).start()
+        Global_Variables.combo += 1
+        threading.Thread(target=apply_combo, args=([app])).start()
         while True:
             release_color_pos = pyautogui.pixel(position[0], position[1]+100)
             if release_color_pos == color:
                 if pyautogui.pixel(position[0] + 30, position[1] + 100) != color:
                     continue
-            keyboard_controller.release(key)
+            keyboard_controller.release(app.settings[arrow])
+            threading.Thread(target=change_color, args=(arrow, displayer, False)).start()
             break
+        if pyautogui.pixel(position[0], position[1]-80) != color:  # Miss detected
+            continue
+        Global_Variables.combo = 0
+
 
 # Function that help encoding entry variables to tuples.
 def separate(value: str, number: bool = True):
@@ -96,7 +142,7 @@ def separate(value: str, number: bool = True):
 # Main class of the App:
 class App:
 
-    def __init__(self):
+    def __init__(self, theme: str = 'light'):
         # Window Setting
         self.root = tk.Tk()
         self.root.geometry('450x510')
@@ -122,13 +168,26 @@ class App:
         }
 
         self.theme = {
-            'bg': '#2F3133',
-            'fg': '#ffffff',
-            'button_bg': '#555555',
-            'button_fg': '#ffffff',
-            'active_button_bg': '#444444',
-            'active_button_fg': '#ffffff',
+            'light': {
+                'main_bg': '#FFFFFF',
+                'bg': '#E6E6E6',
+                'fg': '#000000',
+                'button_bg': '#CCCCCC',
+                'button_fg': '#0F0F0F',
+                'active_button_bg': '#BFBFBF',
+                'active_button_fg': '#1C1C1C',
+            },
+            'dark': {
+                'main_bg': '#454545',
+                'bg': '#3B3B3B',
+                'fg': '#E0E0E0',
+                'button_bg': '#545454',
+                'button_fg': '#E0E0E0',
+                'active_button_bg': '#4F4F4F',
+                'active_button_fg': '#D1D1D1',
+            },
         }
+        self.current_theme = self.theme[theme]
         self.savefile = 'save.ini'
         self.save = ConfigParser()
         self.save.read(self.savefile)
@@ -147,10 +206,12 @@ class App:
         self.settings['right_color'] = self.save.get('Colors', 'right')
 
         # Window Elements
+        self.root.configure(background=self.current_theme.get('main_bg'))
+
         style = ttk.Style()
         style.configure('TNotebook.Tab', padding=[15, 4], font=('Arial', 16))
 
-        self.main_frame = tk.LabelFrame(self.root, padx=5, pady=5)
+        self.main_frame = tk.LabelFrame(self.root, padx=5, pady=5, background=self.current_theme.get('main_bg'))
         self.main_frame.grid(row=0, column=0, padx=5, pady=5, sticky='nsew')
 
         self.notebook = ttk.Notebook(self.main_frame, width=420)
@@ -169,40 +230,85 @@ class App:
         self.notebook.add(self.credits_tab, text='Credits')
 
         # Main Tab
-        self.home_frame = tk.Frame(self.main_tab, padx=10, pady=10)
+        self.home_frame = tk.Frame(self.main_tab, padx=14, pady=10, background=self.current_theme.get('bg'))
         self.home_frame.grid(row=0, column=0)
 
         self.main_title = tk.Label(self.home_frame, text='Friday Night Funkin\'\n'
-                                                         'Automation Bot', font=('', 24), padx=55, pady=0)
-        self.main_title.grid(row=0, column=0, columnspan=3)
+                                                         'Automation Bot', font=('', 24), padx=55, pady=0,
+                                   background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
+        self.main_title.grid(row=0, column=0, columnspan=3, sticky='w')
 
-        self.main_description = tk.Label(self.home_frame, text='The most accurate, easy to use, and the first and\n'
-                                                               'only bot that can hold notes!\n'
-                                                               '\n'
-                                                               'A free and open_sourced bot that can automate note\n'
-                                                               'presses in All FNF games.\n'
-                                                               '\n'
-                                                               'It can automate note presses accurately. Simply bind\n'
-                                                               'your controls in the Controls tab, and the positions\n'
-                                                               'of the notes where they should be pressed, it\'s \n'
-                                                               'recommend to bind it to the center of the note and\n'
-                                                               'then change your visual offset (+60 for fast songs,\n'
-                                                               'you might wanna try different offsets for the best results)\n'
-                                                               'in the settings. Color binds are set to default colors,\n'
-                                                               'if you have custom colors, you might need to change that.\n'
-                                                               '\n'
-                                                               'For more details read the README.md file',
-                                         font=('', 12), padx=0)
-        self.main_description.grid(row=1, column=0, columnspan=3)
+        self.developer_title = tk.Label(self.home_frame, text='Developer Version', font=('', 18), padx=100,
+                                        background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
+        self.developer_title.grid(row=1, column=0, columnspan=3, sticky='w')
+
+        self.separator = tk.Label(self.home_frame, font=('', 18), pady=0, background=self.current_theme.get('bg'))
+        self.separator.grid(row=2, column=0)
+
+        self.arrow_frame = tk.Frame(master=self.home_frame, background=self.current_theme.get('bg'))
+        self.arrow_frame.grid(row=3, column=0)
+
+        self.left_arrow = tk.PhotoImage(name='left', file='assets/images/left_arrow_disabled_sized.png')
+        self.left_arrow_display = tk.Label(master=self.arrow_frame, image=self.left_arrow,
+                                           background=self.current_theme.get('bg'))
+        self.left_arrow_display.grid(row=0, column=0, padx=13)
+
+        self.down_arrow = tk.PhotoImage(name='down', file='assets/images/down_arrow_disabled_sized.png')
+        self.down_arrow_display = tk.Label(master=self.arrow_frame, image=self.down_arrow,
+                                           background=self.current_theme.get('bg'))
+        self.down_arrow_display.grid(row=0, column=1, padx=13)
+
+        self.up_arrow = tk.PhotoImage(name='up', file='assets/images/up_arrow_disabled_sized.png')
+        self.up_arrow_display = tk.Label(master=self.arrow_frame, image=self.up_arrow,
+                                         background=self.current_theme.get('bg'))
+        self.up_arrow_display.grid(row=0, column=2, padx=13)
+
+        self.right_arrow = tk.PhotoImage(name='right', file='assets/images/right_arrow_disabled_sized.png')
+        self.right_arrow_display = tk.Label(master=self.arrow_frame, image=self.right_arrow,
+                                            background=self.current_theme.get('bg'))
+        self.right_arrow_display.grid(row=0, column=3, padx=13)
+
+        self.feed_frame = tk.Frame(master=self.home_frame, pady=15, background=self.current_theme.get('bg'))
+        self.feed_frame.grid(row=4, column=0)
+
+        self.combo_frame = tk.Frame(self.feed_frame, background=self.current_theme.get('bg'))
+        self.combo_frame.grid(row=0, column=1)
+
+        hundred_digit = tk.PhotoImage(name=f'hundred',
+                                      file=f'assets/numbers/blank.png')
+        ten_digit = tk.PhotoImage(name=f'ten', file=f'assets/numbers/blank.png')
+        one_digit = tk.PhotoImage(name=f'one', file=f'assets/numbers/blank.png')
+
+        feed_image = tk.PhotoImage(name=f'feed', file='assets/images/blank.png')
+
+        hundred_display = tk.Label(master=self.combo_frame, image=hundred_digit,
+                                   background=self.current_theme.get('bg'))
+        hundred_display.grid(row=0, column=0)
+
+        ten_display = tk.Label(master=self.combo_frame, image=ten_digit, background=self.current_theme.get('bg'))
+        ten_display.grid(row=0, column=1)
+
+        one_display = tk.Label(master=self.combo_frame, image=one_digit, background=self.current_theme.get('bg'))
+        one_display.grid(row=0, column=2)
+
+        feed_display = tk.Label(master=self.feed_frame, image=feed_image, background=self.current_theme.get('bg'))
+        feed_display.grid(row=0, column=0)
+
+        self.separator_feed = tk.Label(self.home_frame, font=('', 18), pady=20, background=self.current_theme.get('bg'))
+        self.separator_feed.grid(row=8, column=0)
+
+        # self.right_arrow.configure(file=self.right_arrow_enabled)
 
         # Controls Tab
-        self.controls_frame = tk.Frame(self.controls_tab, padx=10, pady=10)
+        self.controls_frame = tk.Frame(self.controls_tab, padx=14, pady=10, background=self.current_theme.get('bg'))
         self.controls_frame.grid(row=0, column=0)
 
-        self.controls_title = tk.Label(self.controls_frame, text='Controls', font=('', 24), padx=130)
+        self.controls_title = tk.Label(self.controls_frame, text='Controls', font=('', 24), padx=130,
+                                       background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
         self.controls_title.grid(row=0, column=0, columnspan=3, sticky='w')
 
-        self.controls_label = tk.Label(self.controls_frame, text='Key binds:', font=('', 16), pady=8)
+        self.controls_label = tk.Label(self.controls_frame, text='Key binds:', font=('', 16), pady=8,
+                                       background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
         self.controls_label.grid(row=1, column=0, columnspan=3, sticky='w')
 
         self.control_rows = []
@@ -211,77 +317,85 @@ class App:
         self.create_control_row(self.controls_frame, "Up", 'up', 4)
         self.create_control_row(self.controls_frame, "Right", 'right', 5)
 
+        self.separator = tk.Label(self.controls_frame, font=('', 16), pady=36, background=self.current_theme.get('bg'))
+        self.separator.grid(row=6, column=0)
+
         # Settings Tab
-        self.settings_frame = tk.Frame(self.settings_tab, padx=10, pady=10)
+        self.settings_frame = tk.Frame(self.settings_tab, padx=10, pady=10, background=self.current_theme.get('bg'))
         self.settings_frame.grid(row=1, column=0, columnspan=3, sticky='nsew')
 
-        self.settings_title = tk.Label(self.settings_frame, text='Settings', font=('', 24), padx=132)
+        self.settings_title = tk.Label(self.settings_frame, text='Settings', font=('', 24), padx=132,
+                                       background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
         self.settings_title.grid(row=0, column=0, columnspan=3, sticky='w')
 
-        self.controls_label = tk.Label(self.settings_frame, text='Detection Coordinate:', font=('', 16), pady=8)
-        self.controls_label.grid(row=1, column=0, columnspan=3, sticky='w')
+        self.position_label = tk.Label(self.settings_frame, text='Detection Coordinate:', font=('', 16), pady=8,
+                                       background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
+        self.position_label.grid(row=1, column=0, columnspan=3, sticky='w')
 
         self.settings_rows = []
-        self.create_settings_row(self.settings_frame, 'Left:', 'left_pos', 2, False)
-        self.create_settings_row(self.settings_frame, 'Down:', 'down_pos', 3, False)
-        self.create_settings_row(self.settings_frame, 'Up:', 'up_pos', 4, False)
-        self.create_settings_row(self.settings_frame, 'Right:', 'right_pos', 5, False)
+        self.create_settings_row(self.settings_frame, 'Left:', 'left_pos', 2)
+        self.create_settings_row(self.settings_frame, 'Down:', 'down_pos', 3)
+        self.create_settings_row(self.settings_frame, 'Up:', 'up_pos', 4)
+        self.create_settings_row(self.settings_frame, 'Right:', 'right_pos', 5)
 
-        self.controls_label = tk.Label(self.settings_frame, text='Color:', font=('', 16), pady=8)
-        self.controls_label.grid(row=6, column=0, columnspan=3, sticky='w')
+        self.color_label = tk.Label(self.settings_frame, text='Color:', font=('', 16), pady=8,
+                                    background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
+        self.color_label.grid(row=6, column=0, columnspan=3, sticky='w')
 
-        self.create_settings_row(self.settings_frame, 'Left:', 'left_color', 7, True)
-        self.create_settings_row(self.settings_frame, 'Down:', 'down_color', 8, True)
-        self.create_settings_row(self.settings_frame, 'Up:', 'up_color', 9, True)
-        self.create_settings_row(self.settings_frame, 'Right:', 'right_color', 10, True)
+        self.create_settings_row(self.settings_frame, 'Left:', 'left_color', 7)
+        self.create_settings_row(self.settings_frame, 'Down:', 'down_color', 8)
+        self.create_settings_row(self.settings_frame, 'Up:', 'up_color', 9)
+        self.create_settings_row(self.settings_frame, 'Right:', 'right_color', 10)
 
         # Credits Tab
-        self.credits_frame = tk.Frame(self.credits_tab, padx=10, pady=10)
+        self.credits_frame = tk.Frame(self.credits_tab, padx=20, pady=10, background=self.current_theme.get('bg'))
         self.credits_frame.grid(row=0, column=0)
 
-        self.credits_title = tk.Label(self.credits_frame, text='Credits', font=('', 24), padx=140, pady=15)
+        self.credits_title = tk.Label(self.credits_frame, text='Credits', font=('', 24), padx=140, pady=15,
+                                      background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
         self.credits_title.grid(row=0, column=0, columnspan=3)
 
-        self.development_title = tk.Label(self.credits_frame, text='Development and Programming', font=('', 16))
+        self.development_title = tk.Label(self.credits_frame, text='Development and Programming', font=('', 16),
+                                          background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
         self.development_title.grid(row=1, column=0, columnspan=3)
 
-        self.developer = tk.Label(self.credits_frame, text='Aweb (awebgamedev)', font=('', 12))
+        self.developer = tk.Label(self.credits_frame, text='Aweb (awebgamedev)', font=('', 12),
+                                  background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
         self.developer.grid(row=2, column=0, columnspan=3)
 
-        self.testing_title = tk.Label(self.credits_frame, text='Testing', font=('', 16))
+        self.testing_title = tk.Label(self.credits_frame, text='Testing', font=('', 16),
+                                      background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
         self.testing_title.grid(row=3, column=0, columnspan=3)
 
         self.testers = tk.Label(self.credits_frame, text='Aweb (awebgamedev)\n'
-                                                         'Another Person', font=('', 12))
+                                                         'Another Person', font=('', 12),
+                                background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
         self.testers.grid(row=4, column=0, columnspan=3)
 
-        self.discord_button = self.Button('Join our Discord Server', self.credits_frame, self.theme, font=('', 16),
-                                          command=self.discord, pad=(10, 0))
+        self.discord_button = self.Button('Join our Discord Server', self.credits_frame, self.current_theme,
+                                          font=('', 16), command=self.discord, pad=(10, 0))
         self.discord_button.grid(row=5, column=0, columnspan=3, pady=5)
 
-        self.support_button = self.Button('Support Us :>', self.credits_frame, self.theme, font=('', 16),
+        self.support_button = self.Button('Support Us :>', self.credits_frame, self.current_theme, font=('', 16),
                                           command=self.support, pad=(10, 0))
         self.support_button.grid(row=6, column=0, columnspan=3, pady=5)
 
-        self.support_button = self.Button('Get FNF', self.credits_frame, self.theme, font=('', 16),
+        self.support_button = self.Button('Get FNF', self.credits_frame, self.current_theme, font=('', 16),
                                           command=self.fnf, pad=(10, 0))
         self.support_button.grid(row=7, column=0, columnspan=3, pady=5)
 
-        self.start_button = self.Button('Turn On', self.root, self.theme, font=('', 16), command=self.start)
+        self.separator = tk.Label(self.credits_frame, font=('', 10), pady=8, background=self.current_theme.get('bg'))
+        self.separator.grid(row=8, column=0)
+
+        self.start_button = self.Button('Turn On', self.root, self.current_theme, font=('', 16), command=self.start)
         self.start_button.place(x=175, y=460)
 
-        self.root.protocol("WM_DELETE_WINDOW", self.on_closing) # Call on_closing function when window gets closed
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)  # Call on_closing function when window gets closed
         self.root.mainloop()
 
     # Function that gets called when app is closed, used to make sure th app close smoothly.
     def on_closing(self):
-        try:
-            for process in self.processes:  # Terminate all running processes to insure everything close smoothly
-                if process.is_alive():
-                    process.terminate()
-                    process.join()
-        except AttributeError:
-            pass
+        Global_Variables.running = False
 
         # Save all Variables
         self.save.set('Controls', 'left', self.settings['left'])
@@ -309,16 +423,15 @@ class App:
         if self.on:
             # Turns off the bot and stops all processes.
             self.start_button.config(text='Turn On')
-            for process in self.processes:
-                if process.is_alive():
-                    process.terminate()
-                    process.join()
+            Global_Variables.running = False
+            Global_Variables.combo = 0
 
             self.on = False
             return
 
         # Turns on the bot
         self.on = True
+        Global_Variables.running = True
         self.start_button.config(text='Turn Off')
 
         for row in self.settings_rows:  # Updates the settings dictionary
@@ -349,39 +462,73 @@ class App:
 
         # Pass all variables needed and start all processes
         self.processes = [
-            multiprocessing.Process(target=press_key, args=((left_pos[0], left_pos[1]), (left_color[0], left_color[1], left_color[2]), self.settings.get('left'))),
-            multiprocessing.Process(target=press_key, args=((down_pos[0], down_pos[1]), (down_color[0], down_color[1], down_color[2]), self.settings.get('down'))),
-            multiprocessing.Process(target=press_key, args=((up_pos[0], up_pos[1]), (up_color[0], up_color[1], up_color[2]), self.settings.get('up'))),
-            multiprocessing.Process(target=press_key, args=((right_pos[0], right_pos[1]), (right_color[0], right_color[1], right_color[2]), self.settings.get('right'))),
+            threading.Thread(target=press_key, args=((left_pos[0], left_pos[1]), (left_color[0], left_color[1], left_color[2]), 'left', self.left_arrow, self)),
+            threading.Thread(target=press_key, args=((down_pos[0], down_pos[1]), (down_color[0], down_color[1], down_color[2]), 'down', self.down_arrow, self)),
+            threading.Thread(target=press_key, args=((up_pos[0], up_pos[1]), (up_color[0], up_color[1], up_color[2]), 'up', self.up_arrow, self)),
+            threading.Thread(target=press_key, args=((right_pos[0], right_pos[1]), (right_color[0], right_color[1], right_color[2]), 'right', self.right_arrow, self)),
         ]
 
         for process in self.processes:
             process.start()
 
     # All functions bellow this line are for UI.
+    def display_combo(self, numbers:list[int, int, int]):
+        hundred_digit = tk.PhotoImage(name=f'hundred{Global_Variables.combo}', file=f'assets/numbers/num{numbers[0]}.png')
+        ten_digit = tk.PhotoImage(name=f'ten{Global_Variables.combo}', file=f'assets/numbers/num{numbers[1]}.png')
+        one_digit = tk.PhotoImage(name=f'one{Global_Variables.combo}', file=f'assets/numbers/num{numbers[2]}.png')
+
+        feed_image = tk.PhotoImage(name=f'feed{Global_Variables.combo}', file='assets/images/sick_sized.png')
+
+        hundred_display = tk.Label(master=self.combo_frame, image=hundred_digit, background=self.current_theme.get('bg'))
+        hundred_display.grid(row=0, column=0)
+
+        ten_display = tk.Label(master=self.combo_frame, image=ten_digit,background=self.current_theme.get('bg'))
+        ten_display.grid(row=0, column=1)
+
+        one_display = tk.Label(master=self.combo_frame, image=one_digit, background=self.current_theme.get('bg'))
+        one_display.grid(row=0, column=2)
+
+        feed_display = tk.Label(master=self.feed_frame, image=feed_image, background=self.current_theme.get('bg'))
+        feed_display.grid(row=0, column=0)
+
+        time.sleep(1)
+
+        hundred_display.destroy()
+        ten_display.destroy()
+        one_display.destroy()
+        feed_display.destroy()
+
     def create_control_row(self, parent, label_text, key, row):
-        label = tk.Label(parent, text=label_text, font=('', 12))
+        label = tk.Label(parent, text=label_text, font=('', 12), background=self.current_theme.get('bg'),
+                         foreground=self.current_theme.get('fg'))
         label.grid(row=row, column=0, sticky='w', pady=3)
 
-        key_label = tk.Label(parent, text=self.settings.get(key), font=('', 12))
+        key_label = tk.Label(parent, text=self.settings.get(key), font=('', 12), background=self.current_theme.get('bg'),
+                             foreground=self.current_theme.get('fg'))
         key_label.grid(row=row, column=1, sticky='w', padx=125)
         self.control_rows.append([key, key_label])
 
         if self.save.has_option('Controls', key):
             self.control_rows[-1][1].config(text=self.save.get('Controls', key))
 
-        bind_button = self.Button('Bind', parent, self.theme, ('', 12), lambda: self.bind(key), (20, 0))
+        bind_button = self.Button('Bind', parent, self.current_theme, ('', 12), lambda: self.bind(key), (20, 0))
         bind_button.grid(row=row, column=2, sticky='e', pady=10)
 
-    def create_settings_row(self, parent, label_text, key, row, color:bool):
-        label = tk.Label(parent, text=label_text, font=('', 12))
+        label = tk.Label(parent, text='', font=('', 12),
+                         background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
+        label.grid(row=row, column=3, sticky='w', padx=10)
+
+    def create_settings_row(self, parent, label_text, key, row):
+        label = tk.Label(parent, text=label_text, font=('', 12),
+                         background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
         label.grid(row=row, column=0, sticky='w', pady=3)
 
         entry_variable = tk.StringVar()
 
         entry_variable.set(self.settings.get(key))
 
-        key_entry = tk.Entry(parent, textvariable=entry_variable, font=('', 12), width=11)
+        key_entry = tk.Entry(parent, textvariable=entry_variable, font=('', 12), width=11,
+                             background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
         key_entry.grid(row=row, column=1, sticky='w', padx=85)
         self.settings_rows.append([key, entry_variable, key_entry])
 
@@ -394,8 +541,12 @@ class App:
                 print(self.save.get('Colors', key[:-6]))
                 self.settings_rows[-1][1].set(self.save.get('Colors', key[:-6]))
 
-        bind_button = self.Button('Bind', parent, self.theme, ('', 9), lambda: self.bind_setting(key), (20, 0))
+        bind_button = self.Button('Bind', parent, self.current_theme, ('', 9), lambda: self.bind_setting(key), (20, 0))
         bind_button.grid(row=row, column=2, sticky='e', pady=0)
+
+        label = tk.Label(parent, text='', font=('', 12),
+                         background=self.current_theme.get('bg'), foreground=self.current_theme.get('fg'))
+        label.grid(row=row, column=3, sticky='w', padx=10)
 
     def Button(self,
                text: str,
@@ -404,12 +555,10 @@ class App:
                font: tuple[str, int],
                command: any = None,
                pad: tuple[float, float] = (0, 0)):
-        """frame, text=text, border=0, background=theme.get('button_bg'), foreground=theme.get('button_fg'),
-        activebackground=theme.get('active_button_bg'), activeforeground=theme.get('active_button_fg'),
-        font=font, command=command, padx=pad[0], pady=pad[1]"""
 
-        return tk.Button(frame, text=text,
-                         font=font, command=command, padx=pad[0], pady=pad[1])
+        return tk.Button(frame, text=text, border=0, background=theme.get('button_bg'), foreground=theme.get('button_fg'),
+        activebackground=theme.get('active_button_bg'), activeforeground=theme.get('active_button_fg'),
+        font=font, command=command, padx=pad[0], pady=pad[1])
 
 
     def bind(self, key: str):
@@ -417,7 +566,7 @@ class App:
 
         self.bind_window = tk.Toplevel()
         self.bind_window.title("Key Bind")
-        self.bind_window.geometry("200x100+960+540")
+        self.bind_window.geometry("250x100+960+540")
         self.bind_window.focus_set()
 
         label = tk.Label(self.bind_window, text="Press any key to rebind.\nClose the window to cancel.")
@@ -516,8 +665,4 @@ class App:
 # Calls the application class
 if __name__ == "__main__":
     App()
-
-
-
-
 
