@@ -40,15 +40,80 @@ server. The rest is now all up to you now,
 GoOd LuCk!!
 """
 
+import subprocess
+import sys
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+def install(package):
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+    except subprocess.CalledProcessError:
+        raise Exception(f"Failed to install {package}")
+
+# Function to check and install libraries with progress update and status text
+def check_and_install(progress_bar, status_label, root):
+    packages = ["pyautogui", "pynput", "keyboard", "configparser", "tk"]
+    installed = 0
+
+    for package in packages:
+        status_label.config(text=f"Installing {package}...")
+        status_label.update()
+
+        try:
+            __import__(package)
+        except ImportError:
+            try:
+                install(package)
+            except Exception as e:
+                messagebox.showerror("Installation Error", str(e))
+                root.destroy()
+                quit()
+
+        installed += 1
+        progress = int((installed / len(packages)) * 100)
+        progress_bar['value'] = progress
+        progress_bar.update()
+
+    # Automatically close the window once installation is complete
+    root.after(500, root.destroy)
+
+def on_closing():
+    quit()
+
+def show_installation_window():
+    root = tk.Tk()
+    root.title("Library Installation")
+    root.geometry("400x100+720+420")
+    root.resizable(False, False)
+
+    label = tk.Label(root, text="Installing Libraries...", font=("Arial", 14))
+    label.pack(pady=5)
+
+    progress_bar = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
+    progress_bar.pack(pady=5)
+    progress_bar['value'] = 0
+
+    status_label = tk.Label(root, text="", font=("Arial", 10))
+    status_label.pack(pady=5)
+
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+
+    root.after(100, lambda: check_and_install(progress_bar, status_label, root))
+    root.mainloop()
+
+show_installation_window()
+
+
 # Modules and Packages:
 import pyautogui
 from pynput.keyboard import Controller
-import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from configparser import ConfigParser
 import threading
 import keyboard
 import time
+import webbrowser as wb
 
 keyboard_controller = Controller()
 
@@ -145,7 +210,7 @@ class App:
     def __init__(self, theme: str = 'light'):
         # Window Setting
         self.root = tk.Tk()
-        self.root.geometry('450x510')
+        self.root.geometry('450x510+685+240')
         self.root.title('FNF Automation Bot')
         self.root.resizable(False, False)
         self.root.wm_iconbitmap('assets/icon.ico')
@@ -376,16 +441,12 @@ class App:
                                           font=('', 16), command=self.discord, pad=(10, 0))
         self.discord_button.grid(row=5, column=0, columnspan=3, pady=5)
 
-        self.support_button = self.Button('Support Us :>', self.credits_frame, self.current_theme, font=('', 16),
-                                          command=self.support, pad=(10, 0))
-        self.support_button.grid(row=6, column=0, columnspan=3, pady=5)
-
         self.support_button = self.Button('Get FNF', self.credits_frame, self.current_theme, font=('', 16),
                                           command=self.fnf, pad=(10, 0))
-        self.support_button.grid(row=7, column=0, columnspan=3, pady=5)
+        self.support_button.grid(row=6, column=0, columnspan=3, pady=5)
 
-        self.separator = tk.Label(self.credits_frame, font=('', 10), pady=8, background=self.current_theme.get('bg'))
-        self.separator.grid(row=8, column=0)
+        self.separator = tk.Label(self.credits_frame, font=('', 10), pady=32, background=self.current_theme.get('bg'))
+        self.separator.grid(row=7, column=0)
 
         self.start_button = self.Button('Turn On', self.root, self.current_theme, font=('', 16), command=self.start)
         self.start_button.place(x=175, y=460)
@@ -653,13 +714,10 @@ class App:
         self.bind_window.destroy()
 
     def discord(self):
-        print("discord")
-
-    def support(self):
-        print("support")
+        wb.open('https://discord.gg/8mWhckAyas')
 
     def fnf(self):
-        print("fnf")
+        wb.open('https://ninja-muffin24.itch.io/funkin')
 
 
 # Calls the application class
