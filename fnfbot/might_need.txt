@@ -1,0 +1,24 @@
+
+    def left_arrow_enable(self):
+        self.left_arrow.configure(file='assets/images/left_arrow_enabled_sized.png')
+
+    def down_arrow_enable(self):
+        self.down_arrow.configure(file='assets/images/down_arrow_enabled_sized.png')
+
+    def up_arrow_enable(self):
+        self.up_arrow.configure(file='assets/images/up_arrow_enabled_sized.png')
+
+    def right_arrow_enable(self):
+        self.right_arrow.configure(file='assets/images/right_arrow_enabled_sized.png')
+
+    def left_arrow_disable(self, e):
+        self.left_arrow.configure(file='assets/images/left_arrow_disabled_sized.png')
+
+    def down_arrow_disable(self, e):
+        self.down_arrow.configure(file='assets/images/down_arrow_disabled_sized.png')
+
+    def up_arrow_disable(self, e):
+        self.up_arrow.configure(file='assets/images/up_arrow_disabled_sized.png')
+
+    def right_arrow_disable(self, e):
+        self.right_arrow.configure(file='assets/images/right_arrow_disabled_sized.png')
